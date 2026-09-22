@@ -49,20 +49,30 @@
 ## 架构
 
 ```mermaid
-graph TD
-    U[用户] --> SYS["system.py 编排"]
-    SYS --> R["router 多意图识别"]
-    R --> F["fanout 并行"]
-    F --> OA[OrderAgent] & FA[FAQAgent] & CA[ComplaintAgent]
-    OA & FA & CA --> AG["agent.py ReAct 循环"]
-    AG -->|第一步未调工具?| JEV{"OpenJev 意图判断"}
-    JEV -->|该调工具| RETRY["回灌提示强制调工具"]
-    RETRY --> AG
-    JEV -->|不需调| ANS["直接回答并返回"]
-    AG --> LLM[DeepSeek]
-    AG --> TOOLS[tools / data]
-    F --> M["merge 拼接"]
-    M --> SYS
+flowchart TB
+    U([用户]) --> SYS["system.py 编排"]
+    SYS --> ROUTER["router.py 多意图识别"]
+    ROUTER --> FANOUT["fanout.py 并行分发"]
+
+    subgraph agents["业务 Agent"]
+        OA[OrderAgent]
+        FA[FAQAgent]
+        CA[ComplaintAgent]
+    end
+    FANOUT --> OA & FA & CA
+
+    subgraph loop["共享 ReAct 循环 agent.py"]
+        direction TB
+        ENTRY[循环启动] --> LLM[LLM · DeepSeek]
+        LLM -->|已调工具| RUN[执行 tools / 检索 data]
+        RUN --> ENTRY
+        ENTRY -->|第一步未调工具| JEV{{OpenJev 意图判断}}
+        JEV -->|该调工具| ENTRY
+        JEV -->|不需调| FINAL[返回最终回答]
+    end
+    OA & FA & CA --> ENTRY
+    FINAL --> MERGE["merge.py 拼接"]
+    MERGE --> OUT([回复用户])
 ```
 
 详见 [docs/architecture.md](docs/architecture.md)。

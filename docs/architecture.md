@@ -3,25 +3,35 @@
 ## 总览
 
 ```mermaid
-graph TD
-    U[用户] --> CLI["cli.py / demo.py"]
+flowchart TB
+    U([用户]) --> CLI["cli.py / demo.py"]
     CLI --> SYS["system.py（编排）"]
-    SYS -->|classify| R["router.py 意图识别<br/>（多意图 + 置信度）"]
-    R -->|多意图| F["fanout.py 并行分发"]
-    F --> OA[OrderAgent]
-    F --> FA[FAQAgent]
-    F --> CA[ComplaintAgent]
+
+    SYS -->|classify| ROUTER["router.py 意图识别<br/>多意图 + 置信度"]
+    ROUTER -->|多意图| FANOUT["fanout.py 并行分发"]
+
+    subgraph agents["业务 Agent"]
+        OA[OrderAgent]
+        FA[FAQAgent]
+        CA[ComplaintAgent]
+    end
+    FANOUT --> OA & FA & CA
     OA --> OT[order_tools]
-    FA --> FT["faq_tools<br/>(手写 TF-IDF)"]
+    FA --> FT["faq_tools 手写 TF-IDF"]
     CA --> RT[refund_tools]
-    OA & FA & CA -.ReAct.-> AG["agent.py<br/>(tool-calling 循环)"]
-    AG -->|第一步未调工具?| JEV{"jev_router.py<br/>OpenJev 意图判断"}
-    JEV -->|该调工具| RETRY["回灌提示强制调工具"]
-    RETRY --> AG
-    JEV -->|不需调| ANS["直接回答并返回"]
-    AG -->|调用| LLM["llm.py<br/>(DeepSeek)"]
-    F -->|收集| M["merge（拼接，不再调 LLM）"]
-    M --> CLI
+
+    subgraph loop["共享 ReAct 循环 agent.py"]
+        direction TB
+        ENTRY[循环启动] --> LLM["llm.py · DeepSeek"]
+        LLM -->|已调工具| RUN[执行 tools / 检索 data]
+        RUN --> ENTRY
+        ENTRY -->|第一步未调工具| JEV{{"jev_router.py<br/>OpenJev 意图判断"}}
+        JEV -->|该调工具| ENTRY
+        JEV -->|不需调| FINAL[返回最终回答]
+    end
+    OA & FA & CA --> ENTRY
+    FINAL --> MERGE["merge 拼接<br/>不再调 LLM"]
+    MERGE --> CLI
     SYS -.记录.-> H[(跨轮 history)]
 ```
 
