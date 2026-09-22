@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2  # v8 无 major 滚动 tag，pin 到具体版本
+
+      # uv sync 自动按 .python-version 装 Python 与依赖；测试用 FakeLLM，无需 API key
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Mypy (strict)
+        run: uv run mypy
+
+      - name: Pytest (coverage gate 85%)
+        run: uv run pytest -q --cov --cov-fail-under=85
